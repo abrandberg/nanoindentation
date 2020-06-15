@@ -1,4 +1,4 @@
-function [xy,basefit,zeroLine] = offsetAndDriftCompensation(xy)
+function [xy,basefit,zeroLine,rampStartIdx,x_zero] = offsetAndDriftCompensation(xy)
     
 
    
@@ -32,11 +32,40 @@ function [xy,basefit,zeroLine] = offsetAndDriftCompensation(xy)
         if zeroMean > (zeroMeanOld+0.5*zeroStdOld) & aLoop > 3
             basefit = endRangeBaseFit*(aLoop-1);
             breakForContact =0;
+        elseif endRangeBaseFit*aLoop > 1000
+            basefit = endRangeBaseFit*(8-1);
+            breakForContact =0;
         else
             zeroMeanOld = zeroMean;
             zeroStdOld = zeroStd;
         end
     end
 
-    zeroLine = [xy(10:basefit,1) ones(size(xy(10:basefit,1)))]\xy(10:basefit,2);
-    xy(:,2) = xy(:,2) - [xy(:,1) ones(size(xy(:,1)))]*zeroLine; 
+%     zeroLine = [xy(10:basefit,1) ones(size(xy(10:basefit,1)))]\xy(10:basefit,2);
+%     xy(:,2) = xy(:,2) - [xy(:,1) ones(size(xy(:,1)))]*zeroLine; 
+    
+    
+    zeroLineM = [ones(size(xy(10:basefit,1)))]\xy(10:basefit,2);
+    xy(:,2) = xy(:,2) - [ones(size(xy(:,1)))]*zeroLineM; 
+    
+    % Locate the point where the ramp begins.
+    noise = max(0.1,std(xy(10:basefit,2)));
+    rampStartIdx = find( xy(:,2)>4*noise ,1,'first') - 1;
+    x_zero = xy(rampStartIdx,1);
+    xy(:,1) = xy(:,1) - x_zero;                                       % Shift the curve by the value at the start of the ramp.
+    
+    
+    
+    
+    zeroLineD = [xy(10:basefit,1) ]\xy(10:basefit,2);
+%     xy(:,2) = xy(:,2) - [xy(:,1) ]*zeroLineD; 
+    
+    zeroLine = [zeroLineD zeroLineM];
+    
+    
+    
+    
+    
+    
+    
+    

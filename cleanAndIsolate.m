@@ -9,7 +9,7 @@ function xyOut = cleanAndIsolate(xy0)
 
 % plot([1:length(xy0(:,2))]/2000,xy0(:,2))
 
-xyOut = xy0((10*2000):round(60*2000),:);
+xyOut = xy0((10.3*2000):round(60*2000),:);
 % plot(xyOut(:,1),xyOut(:,2))
 
 
