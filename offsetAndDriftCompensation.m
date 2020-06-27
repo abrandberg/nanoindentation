@@ -29,7 +29,7 @@ function [xy,basefit,zeroLine,rampStartIdx,x_zero] = offsetAndDriftCompensation(
             pause(2)
         end
         
-        if zeroMean > (zeroMeanOld+0.5*zeroStdOld) & aLoop > 3
+        if zeroMean > (zeroMeanOld+0.5*zeroStdOld) && aLoop > 3
             basefit = endRangeBaseFit*(aLoop-1);
             breakForContact =0;
         elseif endRangeBaseFit*aLoop > 1000

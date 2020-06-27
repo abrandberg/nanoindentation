@@ -64,12 +64,18 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
 % date: 2020-06-07
 %
 %
+
+    % Check whether we are in MATLAB or in OCTAVE
+    execEngine = exist ('OCTAVE_VERSION', 'builtin');
+    
+    subplotSize = [3 3];
+    
     % Preprocessing
     xy = dataPreProcessing(horzcat(indentationSet.targetDir,resultFile));
     
     
     if ctrl.verbose
-        subplot(3,2,1)
+        subplot(subplotSize(1),subplotSize(2),1)
         plot(xy(:,1),xy(:,2),'DisplayName','Raw signal')
         hold on
         xlabel('Column 1')
@@ -81,7 +87,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
 %     [xy,basefit,offsetPolynom] = offsetAndDriftCompensation(xy);
     [xy,basefit,offsetPolynom,rampStartIdx,x_zero] = offsetAndDriftCompensation(xy);
     if ctrl.verbose
-        subplot(3,2,1)
+        subplot(subplotSize(1),subplotSize(2),1)
         plot(xy(:,1),xy(:,2),'DisplayName',['Offset and drift corr., O = ' num2str(offsetPolynom(2)), ', D = ' num2str(offsetPolynom(1))])
         legend('location','best')
         
@@ -90,7 +96,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     
 
     if ctrl.verbose
-        subplot(3,2,1)
+        subplot(subplotSize(1),subplotSize(2),1)
         plot(xy(rampStartIdx,1),xy(rampStartIdx,2),'ko','DisplayName','Start of ramp')
         plot(xy(:,1),xy(:,2),'DisplayName','Calibrated to start of ramp')
     end
@@ -112,7 +118,20 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     % 6. This is taken as the first value in the hold sequence.
     sensorRange = range(xy(:,2));
     vecLengthTemp = round(500*sensorRange/200);
-    [histTemp,edgesOfHist] = histcounts(xy(:,2),vecLengthTemp);
+    
+    if execEngine == 0
+      [histTemp,edgesOfHist] = histcounts(xy(:,2),vecLengthTemp);
+    elseif execEngine == 5
+      edges = linspace(min(xy(:,2)) , max(xy(:,2)),vecLengthTemp);
+      n = histc (xy(:,2), edges);
+      histTemp = n;
+      edgesOfHist = edges;
+    end
+    
+    
+    
+    
+    
     
     tailVecStart = round(0.9*vecLengthTemp);
     [~,peakIdx] = max(histTemp(tailVecStart:end));
@@ -122,7 +141,8 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     holdStartIdx = find(xy(:,2)> meanOfPlateau,1,'first');
 
     if ctrl.verbose
-        subplot(3,2,2)
+%         subplot(3,2,2)
+        subplot(subplotSize(1),subplotSize(2),2)
         plot(xy(:,1),xy(:,2),'DisplayName','Centered signal')
         hold on
         plot(xy(rampStartIdx,1),xy(rampStartIdx,2),'ok','DisplayName','Start of ramp')
@@ -138,7 +158,8 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
 	xy_unld1 = xy(holdStartIdx:end,:);
     
     if ctrl.verbose
-        subplot(3,2,2)
+%         subplot(3,2,2)
+        subplot(subplotSize(1),subplotSize(2),2)
         plot(xy_load(:,1),xy_load(:,2),'DisplayName','Loading')
     end
 
@@ -153,25 +174,17 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     % 6. This is taken as the first value in the unload sequence.
     sensorRange = range(xy_unld1(:,2));
     vecLengthTemp = round(500*sensorRange/1e4);
-    [histTemp,edgesOfHist] = histcounts(xy_unld1(:,2),vecLengthTemp);
     
+    if execEngine == 0
+      [histTemp,edgesOfHist] = histcounts(xy_unld1(:,2),vecLengthTemp);
+    elseif execEngine == 5
+      edges = linspace(min(xy_unld1(:,2)) , max(xy_unld1(:,2)),vecLengthTemp);
+      n = histc (xy_unld1(:,2), edges);
+      histTemp = n;
+      edgesOfHist = edges;
+    end
     
-% sensorRange = range(xy_unld1(:,2));
-% vecLengthTemp = round(500*sensorRange/1e4);
-% 
-% edges = linspace(min(xy_unld1(:,2)) , max(xy_unld1(:,2)),vecLengthTemp);
-% 
-% n = histc (xy_unld1(:,2), edges);
-% 
-% histTemp = n;
-% edgesOfHist = edges;
-
-    
-    
-    
-    
-    
-    
+       
     tailVecStart = round(0.9*vecLengthTemp);
     [~,peakIdx] = max(histTemp(tailVecStart:end));
 
@@ -185,13 +198,14 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     xy_unld = xy_unld1(unloadStartIdx:end,:);              % Classified as post m
     
     if ctrl.verbose
-        subplot(3,2,2)
+%         subplot(3,2,2)
+        subplot(subplotSize(1),subplotSize(2),2)
         plot(xy_hold(:,1),xy_hold(:,2),'DisplayName','Hold')
         plot(xy_unld(1,1),xy_unld(1,2),'o','DisplayName','Start of unload')
         plot(xy_unld(:,1),xy_unld(:,2),'DisplayName','Unload')
         
-        
-        subplot(3,2,5)
+        subplot(subplotSize(1),subplotSize(2),3)
+%         subplot(3,2,5)
         plot(xy(holdStartIdx,1),xy(holdStartIdx,2),'o','DisplayName','Start of hold')
         hold on
         plot(xy_hold(:,1),xy_hold(:,2),'DisplayName','Hold')
@@ -237,12 +251,14 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     
     dhtdt = median(thermal_p(2) * thermal_p(3)*thermalHoldTime.^(thermal_p(3) - 1));
     if ctrl.verbose
-        subplot(3,2,2)
+%         subplot(3,2,2)
+        subplot(subplotSize(1),subplotSize(2),2)
         plot(xy(thermalHoldStartIdx:thermalHoldEndIdx,1),xy(thermalHoldStartIdx:thermalHoldEndIdx,2),'DisplayName','Thermal hold')
         plot(xy(thermalHoldStartIdx,1),xy(thermalHoldStartIdx,2),'s','DisplayName','Start of thermal hold')
         plot(xy(thermalHoldEndIdx,1),xy(thermalHoldEndIdx,2),'s','DisplayName','End of thermal hold')
         
-        subplot(3,2,6)
+%         subplot(3,2,6)
+        subplot(subplotSize(1),subplotSize(2),4)
         plot(xy(thermalHoldStartIdx:thermalHoldEndIdx,1),xy(thermalHoldStartIdx:thermalHoldEndIdx,2),'DisplayName','Thermal hold')
         hold on
         plot(xy(thermalHoldStartIdx,1),xy(thermalHoldStartIdx,2),'s','DisplayName','Start of thermal hold')
@@ -258,8 +274,34 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     
       
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Here we should have an option to do stabilizing of the unloading signal in the 
+    % frquency domain.
+    if 0
+        figure;
+        subplot(2,2,1)
+    hyperParameters.uld_fit_nr= 2000;
+    plot(xy_unld5(1:hyperParameters.uld_fit_nr,1),xy_unld5(1:hyperParameters.uld_fit_nr,2))
+    
+    plot(xy_unld5(1:hyperParameters.uld_fit_nr,1),xy_unld5(1:hyperParameters.uld_fit_nr,2))
+    x1 = xy_unld5(1:hyperParameters.uld_fit_nr,1);
+    y1 = xy_unld5(1:hyperParameters.uld_fit_nr,2);
+    subplot(2,2,2); plot(x1)
+    subplot(2,2,4); plot(y1)
+    
+    subplot(2,2,3); plot((diff(x1)));
+    close;
+    end
+    
+    
+    
+    
+    
+    
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Here comes the fitting
     Fmax = median(xy_unld5(1,2));
+    Fend = median(xy_unld5(1000,2));
     opts = optimset('Algorithm','interior-point','Display','off');
     stiffness_fitS = nan(size(hyperParameters.unloadingFitRange));
     
@@ -280,9 +322,9 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
             unloadFitFun = @(dispVals,forceVals,fitCoefs) [ones(size(forceVals,1),1) forceVals.^0.5 forceVals.^0.25 forceVals.^0.125]*fitCoefs - dispVals ;
             
             % Sums the normalized losses 
-            unloadFitMinFun = @(x) 1/length(xy_unld5(1:hyperParameters.uld_fit_nr,1))* ... 
-                                    sum(  ...
-                                        sqrt( ...
+            unloadFitMinFun = @(x) sqrt( ...
+                                        1/length(xy_unld5(1:hyperParameters.uld_fit_nr,1))* ... 
+                                            sum(  ...
                                                 ( ...
                                                     unloadFitFun(xy_unld5(1:hyperParameters.uld_fit_nr,1),xy_unld5(1:hyperParameters.uld_fit_nr,2),x) ...
                                                     ./xy_unld5(1:hyperParameters.uld_fit_nr,1) ... 
@@ -297,7 +339,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
             [uld_p,fval,exitflag,output] =  fmincon(unloadFitMinFun,        ... % Minimization function
                                                     [1, 1, 1, 1]',          ... % Starting guess
                                                     [],[],[],[],[],[],      ... % Linear equality and inequality constraints
-                                                    unloadFitConstraintFun, ... % Non-linear inequality an equality constraints
+                                                    [], ... % Non-linear inequality an equality constraints % OBS OBS OBS OBS OBS OBS 
                                                     opts);                  ... % Solver options
 
             
@@ -309,9 +351,9 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
             unloadFitFun = @(dispVals,forceVals,fitCoefs) (fitCoefs(1)+fitCoefs(2).*forceVals.^0.5 + fitCoefs(3).*forceVals.^fitCoefs(4)) - dispVals ;
             
             
-            unloadFitMinFun = @(x) 1/length(xy_unld5(1:hyperParameters.uld_fit_nr,1))* ... 
-                                    sum(  ...
-                                        sqrt( ...
+            unloadFitMinFun = @(x) sqrt(  ...
+                                        1/length(xy_unld5(1:hyperParameters.uld_fit_nr,1))* ... 
+                                        sum( ...
                                                 ( ...
                                                     unloadFitFun(xy_unld5(1:hyperParameters.uld_fit_nr,1),xy_unld5(1:hyperParameters.uld_fit_nr,2),x) ...
                                                     ./xy_unld5(1:hyperParameters.uld_fit_nr,1) ... 
@@ -319,19 +361,39 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
                                                  ) ...
                                     );
             
-            unloadFitConstraintFun =  @(x) deal(-( 0.5*x(2).*Fmax.^-0.5 + x(4)*x(3).*Fmax.^(x(4) - 1) ), ...
-                                                0);
             
-            [uld_p,fval,exitflag,output] =  fmincon(unloadFitMinFun,        ... % Minimization function
+            
+            if execEngine == 0
+%               unloadFitConstraintFun =  @(x) deal(-( 0.5*x(2).*Fmax.^-0.5 + x(4)*x(3).*Fmax.^(x(4) - 1) ), ...
+%                                                 0);
+                unloadFitConstraintFun =  @(x) deal(-( 0.5*x(2).*[Fmax Fend].^-0.5 + x(4)*x(3).*[Fmax Fend].^(x(4) - 1) ) , ...
+                                                0);
+                                                
+                          [uld_p,fval,exitflag,output] =  fmincon(unloadFitMinFun,        ... % Minimization function
                                                     [1, 1, 1, 1]',          ... % Starting guess
                                                     [],[],[],[],[],[],      ... % Linear equality and inequality constraints
-                                                    unloadFitConstraintFun, ... % Non-linear inequality an equality constraints
+                                                    unloadFitConstraintFun, ... % Non-linear inequality an equality constraints OBS OBS OBS OBS OBS OBS
                                                     opts);                  ... % Solver options
-            
-            
+            elseif execEngine == 5
+%              unloadFitConstraintFun = 'unloadConstraintFeng'
+
+%              unloadFitConstraintFun = @(x) unloadConstraintFeng(x,Fmax);
+              %unloadFitConstraintFun =  @(x) deal(-( 0.5*x(2).*Fmax.^-0.5 + x(4)*x(3).*Fmax.^(x(4) - 1) ) , 0);
+              unloadFitConstraintFun =  @(x) -( 0.5*x(2).*Fmax.^-0.5 + x(4)*x(3).*Fmax.^(x(4) - 1) );
+              [uld_p,fval,exitflag,output] = optiForOctave(unloadFitMinFun,unloadFitConstraintFun,Fmax);
+
+
+              %unloadFitConstraintFun =  @(x) -( 0.5*x(2).*Fmax.^-0.5 + x(4)*x(3).*Fmax.^(x(4) - 1) );
+            end
+    %
+    
             stiffness_fitS(xLoop) = inv(( 0.5*uld_p(2).*Fmax.^-0.5 + uld_p(4)*uld_p(3).*Fmax.^(uld_p(4) - 1) ));
             
+            if stiffness_fitS(xLoop) < 0
+              stiffness_fitS(xLoop) = nan;
+            end
             
+            %[inv(( 0.5*uld_p(2).*Fmax.^-0.5 + uld_p(4)*uld_p(3).*Fmax.^(uld_p(4) - 1) ))  inv(unloadFitConstraintFun(uld_p))]
             
 %             t3 = @(pt,x) x(1)+x(2).*pt.^0.5 + x(3).*pt.^x(4);
 %             tFun3 = @(pt,y,x) sum(sqrt(( t3(pt,x) - y).^2) );
@@ -346,7 +408,8 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         end
         
         if ctrl.verbose
-            subplot(3,2,3) 
+%             subplot(3,2,3) 
+            subplot(subplotSize(1),subplotSize(2),5)
             plot(xy_unld5(1:hyperParameters.uld_fit_nr,1),xy_unld5(1:hyperParameters.uld_fit_nr,2))
             hold on
             if strcmp(hyperParameters.unloadingFitFunction,'Ganser')
@@ -364,7 +427,8 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
             end
             
             
-            subplot(3,2,4)
+%             subplot(3,2,4)
+            subplot(subplotSize(1),subplotSize(2),6)
             plot(hyperParameters.unloadingFitRange(xLoop),stiffness_fitS(xLoop),'ob','HandleVisibility','off')
             hold on
             xlabel('Number of points in fit')
@@ -376,23 +440,43 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         diagnostics.exitFlags(xLoop) = exitflag;
         diagnostics.output(xLoop) = output;
         
+        diagnostics.rmsValue(xLoop) = unloadFitMinFun(uld_p);
+        
     end
+    diagnostics.stiffnessFitS = stiffness_fitS;
+    stiffness_fitS(isnan(stiffness_fitS)) = [];
     diagnostics.geometricMeanOfSu = geomean(stiffness_fitS);
     diagnostics.medianOfSu = median(stiffness_fitS);
-    
     stiffness_fit = median(stiffness_fitS);
     
+    
+
+   
+   
+    
     if ctrl.verbose
-        subplot(3,2,3)
-        legend('Data in fit','Fit','location','best')
+%         subplot(3,2,3)
+        subplot(subplotSize(1),subplotSize(2),5)
+        if execEngine == 0
+            legend('Data in fit','Fit','location','best')
+        end
         xlabel('Indenter position [nm]')
         ylabel('Force [nN]')
             
-       subplot(3,2,4)
+%        subplot(3,2,4)
+       subplot(subplotSize(1),subplotSize(2),6)
        plot([hyperParameters.unloadingFitRange(1) hyperParameters.unloadingFitRange(end)], ...
              stiffness_fit.*[1 1],'linewidth',2,'DisplayName','Median fit')
-       ylim([0 2*stiffness_fit])
-       legend('location','best')
+       ylim([0 2*stiffness_fit+eps])
+       if execEngine == 0
+           legend('location','best')
+       end
+       
+       subplot(subplotSize(1),subplotSize(2),7)
+       plot([hyperParameters.unloadingFitRange],100*[diagnostics.rmsValue],'o-')
+       xlabel('Number of points in fit')
+       ylabel('Root Mean Square Percentage Error [%]')
+       
     end
 
 
@@ -423,9 +507,16 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     % Equation (3) in [1]
     stiffness = inv(1/stiffness_fit + h_dot_tot/(abs(dPdt(1))));
     
-       
+    if ctrl.verbose
+        subplot(subplotSize(1),subplotSize(2),8)
+        bar(categorical({'Apparent stiffness','Creep contribution','Stiffness'}), ...
+            [stiffness_fit (h_dot_tot/(abs(dPdt(1))))^-1 stiffness])
+        
+    end
+    
     % Equation (22) in [1]
     Cidx = (h_dot_tot-dhtdt) * stiffness_fit / abs(dPdt(1));
+    
     
     maxIndentation = median(xy_unld5(1,1));
     
@@ -471,7 +562,9 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     diagnostics.constantOffset = offsetPolynom(2);
     diagnostics.linearDrift = offsetPolynom(1);
     diagnostics.basefit = basefit;
-
+    diagnostics.unloadArea = UnloadArea;
+    diagnostics.maxIndentation = maxIndentation;
+    diagnostics.x0 = x0;
     
     else
         Er = nan;
@@ -488,22 +581,30 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         diagnostics.output = [];
         diagnostics.geometricMeanOfSu = [];
         diagnostics.medianOfSu = [];
-    
-
+        diagnostics.stiffnessFitS = [];
+        diagnostics.rmsValue = [];
+        diagnostics.unloadArea = [];
+        diagnostics.maxIndentation =  [];
+        diagnostics.x0 = [];
     end
 
     
     
 if ctrl.verbose
-    mkdir('plots')
-    
-    folders = subdirImport(['plots' filesep],'regex','_');
-
-    print(horzcat(['plots' filesep],resultFile(1:end-4)),'-dpng')
-
-
-    for tLoop = 1:6
-        subplot(3,2,tLoop)
+  
+    if execEngine == 0
+      mkdir('plotsMATLAB')
+      folders = subdirImport([pwd filesep 'plotsMATLAB' filesep],'regex','_');
+      print(horzcat([pwd filesep 'plotsMATLAB' filesep],resultFile(1:end-4)),'-dpng')
+    elseif execEngine == 5
+      mkdir('plotsOCTAVE')
+      folders = subdirImport([pwd filesep 'plotsOCTAVE' filesep],'regex','_');
+      print(horzcat([pwd filesep 'plotsOCTAVE' filesep],resultFile(1:end-4)),'-dpng')
+    end
+  
+ 
+    for tLoop = 1:subplotSize(1)*subplotSize(2)
+        subplot(subplotSize(1),subplotSize(2),tLoop)
         hold off
     end
 end
