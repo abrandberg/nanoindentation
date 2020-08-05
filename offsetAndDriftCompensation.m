@@ -1,8 +1,8 @@
 function [xy,basefit,zeroLine,rampStartIdx,x_zero] = offsetAndDriftCompensation(xy)
     
-
+% figure;
    
-    endRangeBaseFit = 100;
+    endRangeBaseFit = 25; % 100 previously
     breakForContact = 1;
     aLoop = 0;
     zeroMeanOld = 0; zeroStdOld = 0;
@@ -12,7 +12,19 @@ function [xy,basefit,zeroLine,rampStartIdx,x_zero] = offsetAndDriftCompensation(
         zeroMean = mean(xy(10:endRangeBaseFit*aLoop,2));
         zeroStd = std(xy(10:endRangeBaseFit*aLoop,2));
         
-        if  0 % Debug module
+        sIdx = 10+endRangeBaseFit*(aLoop-1);
+        eIdx = 10+endRangeBaseFit*(aLoop);
+        
+%         
+        dPdt = 100*(xy(eIdx,2) - xy(sIdx,2)) / endRangeBaseFit;
+        
+        
+%         dPdt = [2000^-1 * [0:(length(xy(10:endRangeBaseFit*aLoop,2))-1)]' ones(length(xy(10:endRangeBaseFit*aLoop,2)),1)]\xy(10:endRangeBaseFit*aLoop,2);  
+        
+%         plot(aLoop,dPdt(1),'o'); hold on
+%         plot(aLoop,dPdt(2),'s')
+        
+        if  0% Debug module
 %             if aLoop == 1
 %                 figure;
 %                 subplot(1,2,1)
@@ -29,7 +41,7 @@ function [xy,basefit,zeroLine,rampStartIdx,x_zero] = offsetAndDriftCompensation(
             pause(2)
         end
         
-        if zeroMean > (zeroMeanOld+0.5*zeroStdOld) && aLoop > 3
+        if dPdt > 3.3  && aLoop > 3%zeroMean > (zeroMeanOld+0.5*zeroStdOld) && aLoop > 1
             basefit = endRangeBaseFit*(aLoop-1);
             breakForContact =0;
         elseif endRangeBaseFit*aLoop > 1000
@@ -53,6 +65,7 @@ function [xy,basefit,zeroLine,rampStartIdx,x_zero] = offsetAndDriftCompensation(
     rampStartIdx = find( xy(:,2)>4*noise ,1,'first') - 1;
     x_zero = xy(rampStartIdx,1);
     xy(:,1) = xy(:,1) - x_zero;                                       % Shift the curve by the value at the start of the ramp.
+    xy(:,2) = xy(:,2) - xy(rampStartIdx,2);
     
     
     

@@ -1,0 +1,7 @@
+*.zip
+@gramm/
+plotsMATLAB/
+*.mat
+*.asv
+*.xlsx
+*.bak
