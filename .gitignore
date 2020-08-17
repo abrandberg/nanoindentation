@@ -1,7 +1,9 @@
 *.zip
 @gramm/
 plotsMATLAB/
+plotsOCTAVE/
 *.mat
 *.asv
 *.xlsx
 *.bak
+ReadIBW.m

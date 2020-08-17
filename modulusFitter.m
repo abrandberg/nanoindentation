@@ -91,12 +91,12 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         plot(xy(:,1),xy(:,2),'DisplayName','Calibrated to start of ramp')
     end
     
-    % Convert displacement-deflection matrix to displacement-force matrix
+    % Convert displacement-deflection matrix to indentation-force matrix
     xy(:,1) = xy(:,1)-xy(:,2);                                      % Subtract deflection from distance to get indentation.
     xy(:,2) = xy(:,2)*indentationSet.springConstant;                % [10^-9*m]*[N/m] = nN Multiply deflection with spring constant to get the force.
+
     
-    
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Determine the start of the hold time at circa max force.
     % 
     % 1. Determine range of deflection values.
@@ -117,7 +117,8 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
       histTemp = n;
       edgesOfHist = edges;
     end
-       
+    
+    
     tailVecStart = round(0.9*vecLengthTemp);
     [~,peakIdx] = max(histTemp(tailVecStart:end));
     peakIdx = peakIdx + tailVecStart-1;
@@ -194,7 +195,9 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         legend('location','best')
         xlabel('Indenter position [nm]')
         ylabel('Force [nN]')
-    end
+    end    
+    
+
     
 
     % Accept only indentations that had positive creep. "Negative" creep (indenter moves outwards 
@@ -206,7 +209,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
 
     % Accept only monotonously increasing load-displacement curves. A curve may show weird behaviour
     % and our solution is to simply drop the curve in that case. 
-    condition2 = min(xy(rampStartIdx:holdStartIdx,1)) > -10
+    condition2 = min(xy(rampStartIdx:holdStartIdx,1)) > -10;
 
     if condition1 && condition2
         
@@ -300,6 +303,16 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     Dmax = median(xy_unld5(1,1));               % Maximum indentation depth during unloading
     Fend = median(xy_unld5(1000,2));            % Force at half the unloading. Can be used to stabilize 
                                                 % the fitting if the curve points the "wrong way".
+
+    if hyperParameters.constrainHead && hyperParameters.constrainTail
+        constrainedPoints = [Fmax Fend];
+    elseif hyperParameters.constrainHead
+        constrainedPoints = Fmax;
+    elseif hyperParameters.constrainTail
+        constrainedPoints = Fend;
+    else
+        constrainedPoints = nan;
+    end
     
     % Pre-allocate
     opts = optimset('Algorithm','interior-point','Display','off');
@@ -309,7 +322,6 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         hyperParameters.uld_fit_nr = hyperParameters.unloadingFitRange(xLoop);
         
         if strcmp(hyperParameters.unloadingFitFunction,'Ganser')
-            
             % Previously used polynom fit
             %
             % Defines a function for the displacement as a function of force during the
@@ -339,7 +351,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
             [uld_p,fval,exitflag,output] =  fmincon(unloadFitMinFun,        ... % Minimization function
                                                     [1, 1, 1, 1]',          ... % Starting guess
                                                     [],[],[],[],[],[],      ... % Linear equality and inequality constraints
-                                                    unloadFitConstraintFun, ... % Non-linear inequality an equality constraints % OBS OBS OBS OBS OBS OBS 
+                                                    [], ... % Non-linear inequality an equality constraints % OBS OBS OBS OBS OBS OBS 
                                                     opts);                  ... % Solver options
 
             
@@ -363,16 +375,25 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
             
             
             if execEngine == 0
-                unloadFitConstraintFun =  @(x) deal(-( 0.5*x(2).*[Fmax Fend].^-0.5 + x(4)*x(3).*[Fmax Fend].^(x(4) - 1) ) , ...
-                                                0);
+                if sum(~isnan(constrainedPoints)) > 0
+                    unloadFitConstraintFun =  {@(x) deal(-( 0.5*x(2).*constrainedPoints.^-0.5 + x(4)*x(3).*constrainedPoints.^(x(4) - 1) ) , ...
+                                                    0)};
+                else
+                    unloadFitConstraintFun =  {[]};
+                end
                                                 
-                          [uld_p,fval,exitflag,output] =  fmincon(unloadFitMinFun,        ... % Minimization function
-                                                    [1, 1, 1, 1]',          ... % Starting guess
-                                                    [],[],[],[],[],[],      ... % Linear equality and inequality constraints
-                                                    [],                     ... % Non-linear inequality an equality constraints OBS OBS OBS OBS OBS OBS
-                                                    opts);                  ... % Solver options
+                [uld_p,fval,exitflag,output] =  fmincon(unloadFitMinFun,        ... % Minimization function
+                                        [1, 1, 1, 1]',                          ... % Starting guess
+                                        [],[],[],[],[],[],                      ... % Linear equality and inequality constraints
+                                        unloadFitConstraintFun{1},                 ... % Non-linear inequality an equality constraints OBS OBS OBS OBS OBS OBS
+                                        opts);                                  ... % Solver options
             elseif execEngine == 5
-                unloadFitConstraintFun =  @(x) -( 0.5*x(2).*Fmax.^-0.5 + x(4)*x(3).*Fmax.^(x(4) - 1) );
+                if sum(~isnan(constrainedPoints)) > 0
+                    unloadFitConstraintFun = {@(x) -( 0.5*x(2).*Fmax.^-0.5 + x(4)*x(3).*Fmax.^(x(4) - 1) )};
+                else
+                    unloadFitConstraintFun =  {[]};
+                end
+                
                 [uld_p,fval,exitflag,output] = optiForOctave(unloadFitMinFun,unloadFitConstraintFun,Fmax);
 
             end
@@ -447,7 +468,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     end
     diagnostics.stiffnessFitS = stiffness_fitS;
     stiffness_fitS(isnan(stiffness_fitS)) = [];
-    diagnostics.geometricMeanOfSu = 0;%geomean(stiffness_fitS); % OBS OBS OBS OBS OBS OBS OBS OBs OBS
+    diagnostics.geometricMeanOfSu = 0;
     diagnostics.medianOfSu = median(stiffness_fitS);
     stiffness_fit = median(stiffness_fitS);
     
@@ -514,9 +535,6 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         stiffness = stiffness_fit;
     end
     
-    % Assert that numerically calculated unload rate is within 10% of specified unload rate.
-    assert(abs((abs(dPdt(1)) - dPdt(2))/dPdt(2)) < 10/100)
-    
     if ctrl.verbose
         subplot(subplotSize(1),subplotSize(2),8)
         bar(categorical({'Apparent stiffness','Creep contribution','Stiffness'}), ...
@@ -535,9 +553,10 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     %     Cidx = (h_dot_tot-dhtdt) * stiffness_fit / abs(dPdt(1));
     Cidx = (h_dot_tot-dhtdt)*stiffness/abs(dPdt(1));
     
+   
     
     % Equation (2) in [1]
-    maxIndentation = median(xy_unld5(1,1)) - dhtdt*(size(xy_hold,1)/hyperParameters.sampleRate);
+    maxIndentation = median(xy_unld5(1,1)) - dhtdt*(size(xy(rampStartIdx:holdStartIdx,1),1)+size(xy_hold,1))/hyperParameters.sampleRate; %OBS OBS OBS
     x0 = maxIndentation - hyperParameters.epsilon*Fmax/stiffness;
 
     
@@ -551,17 +570,17 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     %   S       - [N/m] Stiffness calculated according to Equation (3)
     %   dPdt    - [nm/s] Derivative of force with respect to time
     %   h_c     - [nm] Contact depth
-
     th = length(xy(rampStartIdx:unloadStartIdx,1))/hyperParameters.sampleRate;
     thermIdx = 1 - th*abs(dPdt(1))/(x0*stiffness);
     
+
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	% Determine the area by loading the calibration data and fitting a polynom to the data.
     area_xy = load(indentationSet.areaFile);
 
     if (x0 >= 100)
         area_fit_end = size(area_xy,1);
-    elseif (x0 <100)
+    elseif (x0 < 100)
         area_fit_end = find(area_xy(:,1) > 100,1,'first');
     end
     
@@ -618,7 +637,9 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         diagnostics.area_xy = [];
         diagnostics.hc = [];
         diagnostics.uld_p(xLoop,:) = [];
+        diagnostics.xy = [];
         diagnostics.comment = 'Missed start.';
+    
     end
     
     % For some of the functions, the Er may end up imaginary if something goes wrong. 
@@ -658,6 +679,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         diagnostics.area_xy = [];
         diagnostics.hc = [];
         diagnostics.uld_p = [];
+        diagnostics.xy = [];
         diagnostics.comment = 'Thermal drift > creep.';
     end
 
@@ -684,6 +706,4 @@ if ctrl.verbose
     end
 end
 end % End of function
-% References
-%	[1]  G. Feng et al.: Effects of creep and thermal drift on modulus measurement using 
-%       depth-sensing indentation. J. Mater. Res., 17, 2002
+

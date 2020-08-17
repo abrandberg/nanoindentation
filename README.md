@@ -11,7 +11,7 @@ The repository contains the code to calculate indentation moduli and hardness va
     * https://se.mathworks.com/matlabcentral/fileexchange/42679-igor-pro-file-format-ibw-to-matlab-variable
     * https://cran.r-project.org/web/packages/IgorR/
 
-    but I did not attempt to use them.
+    but I did not attempt to use them. I did try the first link and the results were equivalent (although stored differently).
 
 
 * The repository has been designed to be possible to run from both MATLAB and Octave. Although this is the intention, I do not guarantee that this will always work, as I develop on MATLAB.
