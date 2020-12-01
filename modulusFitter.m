@@ -608,6 +608,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         diagnostics.hf = xy_unld5(end,1);
         diagnostics.area_xy = area_xy;
         diagnostics.hc = (h_dot_tot-dhtdt);
+        diagnostics.xy = xy;
         diagnostics.comment = '';
 
     else
