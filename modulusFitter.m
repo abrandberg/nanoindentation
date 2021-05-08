@@ -69,7 +69,11 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     % Preprocessing
     xy = dataPreProcessing(horzcat(indentationSet.targetDir,resultFile));
     
-
+%     if 1
+%     xy = resample(xy,2000,16667);% delme!
+%     xy = xy(10:end,:);
+%     end
+    
     if ctrl.verbose
         subplot(subplotSize(1),subplotSize(2),1)
         plot(xy(:,1),xy(:,2),'DisplayName','Raw signal')
@@ -94,7 +98,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     % Convert displacement-deflection matrix to indentation-force matrix
     xy(:,1) = xy(:,1)-xy(:,2);                                      % Subtract deflection from distance to get indentation.
     xy(:,2) = xy(:,2)*indentationSet.springConstant;                % [10^-9*m]*[N/m] = nN Multiply deflection with spring constant to get the force.
-
+    xy(:,1) = xy(:,1) - hyperParameters.machineCompliance*xy(:,2); % OBS OBS OBS OBS OBS 
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Determine the start of the hold time at circa max force.
@@ -241,7 +245,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     meanOfPlateau = mean(xy(xy(:,2)>edgesOfHist(peakIdx-1) & xy(:,2)<edgesOfHist(peakIdx+1),2));
     stdOfPlateau = std(xy(xy(:,2)>edgesOfHist(peakIdx-1) & xy(:,2)<edgesOfHist(peakIdx+1),2));
     
-    noiseMultiplier = 15;
+    noiseMultiplier = 5; % 15%
     thermalHoldStartIdx = find(xy(:,2) > meanOfPlateau+noiseMultiplier*stdOfPlateau,1,'last');
     thermalHoldEndIdx = find(xy(:,2) > meanOfPlateau-noiseMultiplier*stdOfPlateau,1,'last');
     
@@ -252,8 +256,19 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     % specified).
     if thermalHoldStartIdx > thermalHoldEndIdx
         disp('Missed thermal hold. Increasing search range.')
-        while 50000+thermalHoldStartIdx > thermalHoldEndIdx
-            noiseMultiplier = noiseMultiplier + 2;
+        
+        if isfield(indentationSet,'thermalHoldTime')
+            if numel(indentationSet.thermalHoldTime) > 0
+                thermalHoldLength = round(indentationSet.thermalHoldTime * 0.8);
+            else
+                thermalHoldLength = 50000;
+            end
+        else
+            thermalHoldLength = 50000;
+        end
+        
+        while thermalHoldLength+thermalHoldStartIdx > thermalHoldEndIdx
+            noiseMultiplier = noiseMultiplier + 1; %+2
             thermalHoldStartIdx = find(xy(:,2) > meanOfPlateau+noiseMultiplier*stdOfPlateau,1,'last');
             thermalHoldEndIdx = find(xy(:,2) > meanOfPlateau-noiseMultiplier*stdOfPlateau,1,'last');
             
@@ -485,7 +500,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
        subplot(subplotSize(1),subplotSize(2),6)
        plot([hyperParameters.unloadingFitRange(1) hyperParameters.unloadingFitRange(end)], ...
              stiffness_fit.*[1 1],'linewidth',2,'DisplayName','Median fit')
-       ylim([0 2*stiffness_fit+eps])
+%        ylim([0 2*stiffness_fit+eps])
        if execEngine == 0
            legend('location','best')
        end
@@ -522,11 +537,11 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     dPdt = [hyperParameters.sampleRate^-1*[0:(length(xy_unld5(:,1))-1)]' ones(length(xy_unld5(:,1)),1)]\xy_unld5(:,2);  
     
     
-    if (h_dot_tot-dhtdt) < 0
-        disp('Warning: Negative creep rate detected.')
-        disp('Setting to 0.')
-        h_dot_tot = dhtdt;
-    end
+%     if (h_dot_tot-dhtdt) < 0
+%         disp('Warning: Negative creep rate detected.')
+%         disp('Setting to 0.')
+%         h_dot_tot = dhtdt;
+%     end
     
     % Equation (3) in [1]
     if hyperParameters.compensateCreep
@@ -557,8 +572,12 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     
     % Equation (2) in [1]
     maxIndentation = median(xy_unld5(1,1)) - dhtdt*(size(xy(rampStartIdx:holdStartIdx,1),1)+size(xy_hold,1))/hyperParameters.sampleRate; %OBS OBS OBS
-    x0 = maxIndentation - hyperParameters.epsilon*Fmax/stiffness;
-
+    
+    if contains(resultFile,'pyr')
+        x0 = maxIndentation - 0.72*Fmax/stiffness;
+    else
+        x0 = maxIndentation - 0.75*Fmax/stiffness;
+    end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Calculate second key index (sensitivity to miss-specification of thermal drift)
@@ -590,9 +609,18 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     
     
 
-    if UnloadArea < max(area_xy(:,2)) || x0 > 25 || x0 < 300 
+    if UnloadArea < max(area_xy(:,2)) || x0 > 15 || x0 < 300  % 25
         % Equation (1) in [1]
-        Er = sqrt(pi)/(1.05*2)*(stiffness/sqrt(UnloadArea));
+%         Er = sqrt(pi)/(1.05*2)*(stiffness/sqrt(UnloadArea));
+        
+        Er = sqrt(pi)/(2)/sqrt(UnloadArea) / (1/stiffness );%- hyperParameters.machineCompliance
+        
+        if contains(resultFile,'pyr')
+            Er = Er/1.05;
+        end
+        
+        
+        
         H = Fmax/UnloadArea;
 
 

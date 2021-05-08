@@ -73,7 +73,8 @@ for cLoop = 1:numel(indentationSet)
             end
 
             if isnan(results(counter).fiberInSet)
-                disp(stop) % debug
+%                 disp(stop) % debug
+            results(counter).fiberInSet = 99;
             end
         
         else

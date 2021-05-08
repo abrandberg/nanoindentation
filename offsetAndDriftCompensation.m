@@ -62,7 +62,7 @@ function [xy,basefit,zeroLine,rampStartIdx,x_zero] = offsetAndDriftCompensation(
     
     % Locate the point where the ramp begins.
     noise = max(0.1,std(xy(10:basefit,2)));
-    rampStartIdx = find( xy(:,2)>4*noise ,1,'first') - 1;
+    rampStartIdx = max(1,find( xy(:,2)>4*noise ,1,'first') - 1);
     x_zero = xy(rampStartIdx,1);
     xy(:,1) = xy(:,1) - x_zero;                                       % Shift the curve by the value at the start of the ramp.
     xy(:,2) = xy(:,2) - xy(rampStartIdx,2);
