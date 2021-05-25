@@ -76,9 +76,9 @@ effectiveCompliance = [areaSave ; ones(size(complianceTot))]'\complianceTot';
 effectiveCompliance = effectiveCompliance(2);
 
 disp('ok')
-hyperParameters.unloadingFitFunction    = 'Feng';
+hyperParameters.unloadingFitFunction    = 'Oliver-Pharr';
 hyperParameters.machineCompliance = effectiveCompliance;
-hyperParameters.compensateCreep = 1;
+hyperParameters.compensateCreep = 0;
 
 
 % indentationSet(1).designatedName        = 'S2_pyr_25';
@@ -369,8 +369,8 @@ for aLoop = 1:numel(indentationSet)         % For each row in indentationSet
     for bLoop = 1:numel(resultNames)        % For each result file in targetDir
         
         
-%         makeRepresentativeFDCurves(indentationSet(aLoop),ctrl,hyperParameters,resultNames{bLoop})
-%         close;
+        makeRepresentativeFDCurves(indentationSet(aLoop),ctrl,hyperParameters,resultNames{bLoop})
+        close;
         [ErSave(bLoop),HSave(bLoop),CidxSave(bLoop),thermIdxSave(bLoop),diagnosticsSave(bLoop)] = modulusFitter(indentationSet(aLoop),ctrl,hyperParameters,resultNames{bLoop});
 
         fprintf('%20s %20s %20.4f %4s\n','','ER = ',ErSave(bLoop),' GPa');
