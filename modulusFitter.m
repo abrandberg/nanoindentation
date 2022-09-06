@@ -136,7 +136,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         hold on
         plot(xy(rampStartIdx,1),xy(rampStartIdx,2),'ok','DisplayName','Start of ramp')
         plot(xy(holdStartIdx,1),xy(holdStartIdx,2),'ob','DisplayName','Start of hold')
-        legend('location','best')
+        %legend('location','best')
         xlabel('Indenter position [nm]')
         ylabel('Force [nN]')
         xlim([xy(rampStartIdx,1)-100 max(xy(:,1))+100])
@@ -196,7 +196,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         hold on
         plot(xy_hold(:,1),xy_hold(:,2),'-k','DisplayName','Hold')
         plot(xy_unld1(unloadStartIdx,1),xy_unld1(unloadStartIdx,2),'o','DisplayName','End of hold')
-        legend('location','best')
+        %legend('location','best')
         xlabel('Indenter position [nm]')
         ylabel('Force [nN]')
     end    
