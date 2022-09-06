@@ -364,7 +364,7 @@ for xLoop = numel(hyperParameters.unloadingFitRange):-1:1
                                             [],[],[],[],[],[],      ... % Linear equality and inequality constraints
                                             [],                     ... % Non-linear inequality an equality constraints OBS OBS OBS OBS OBS OBS
                                             opts);                  ... % Solver options
-
+    uld_p
         stiffness_fitS(xLoop) = max(0,uld_p(1)*uld_p(3)*(Dmax - uld_p(2)).^(uld_p(3) - 1));
     else
         disp(['hyperParameters.unloadingFitFunction = ' hyperParameters.unloadingFitFunction ' is not implemented!'])
