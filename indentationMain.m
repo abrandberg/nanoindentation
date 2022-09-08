@@ -21,6 +21,10 @@ execEngine = exist ('OCTAVE_VERSION', 'builtin');
 if execEngine == 5
   pkg load optim
   %cd('')
+  
+  plotDir = 'plotsOCTAVE';
+else
+  plotDir = 'plotsMATLAB';
 end
 
 
@@ -93,16 +97,22 @@ fprintf('%10s Start of calculations.\n','');
 fprintf('%10s There are %2d set(s).\n','',numel(indentationSet));
 for aLoop = 1:numel(indentationSet)         % For each row in indentationSet
 
+    if not(strcmp(indentationSet(aLoop).targetDir(end) ,filesep))
+        indentationSet(aLoop).targetDir = [indentationSet(aLoop).targetDir filesep];
+    end
+    
+    
     resultNames = subdirImport(indentationSet(aLoop).targetDir,'regex','.ibw');     % Find the .ibw files in targetDir
     indentationSet(aLoop).inputFiles = resultNames;
     
     fprintf('%10s %30s %10s\n','','The current set is: ',indentationSet(aLoop).designatedName);
     fprintf('%10s %30s %20d\n','','Result files in this set:',numel(resultNames));
     
-    ErSave = nan(numel(resultNames),1);
-    HSave = ErSave;
-    CidxSave = ErSave;
-    thermIdxSave = ErSave;
+    ErSave          = nan(numel(resultNames),1);
+    HSave           = nan(numel(resultNames),1);
+    CidxSave        = nan(numel(resultNames),1);
+    thermIdxSave    = nan(numel(resultNames),1);
+    
     for bLoop = 1:numel(resultNames)        % For each result file in targetDir       
         [ErSave(bLoop),HSave(bLoop),CidxSave(bLoop),thermIdxSave(bLoop),diagnosticsSave(bLoop)] = modulusFitter(indentationSet(aLoop),ctrl,hyperParameters,resultNames{bLoop});
 
@@ -111,15 +121,12 @@ for aLoop = 1:numel(indentationSet)         % For each row in indentationSet
     end
  
     
-    if execEngine == 0
-      mkdir('plotsMATLAB')
-      folders = subdirImport([pwd filesep 'plotsMATLAB' filesep],'regex','_');
-      print(horzcat([pwd filesep 'plotsMATLAB' filesep],indentationSet(aLoop).designatedName,num2str(aLoop)),'-dpng')
-    elseif execEngine == 5
-      mkdir('plotsOCTAVE')
-      folders = subdirImport([pwd filesep 'plotsOCTAVE' filesep],'regex','_');
-      print(horzcat([pwd filesep 'plotsOCTAVE' filesep],indentationSet(aLoop).designatedName,num2str(aLoop)),'-dpng')
+    if not(exist(plotDir,'dir'))
+            mkdir(plotDir)
     end
+    folders = subdirImport([pwd filesep plotDir filesep],'regex','_');
+    print(horzcat([pwd filesep plotDir filesep],indentationSet(aLoop).designatedName,num2str(aLoop)),'-dpng')
+
     
     
     % Associate results with array
