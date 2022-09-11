@@ -1,5 +1,4 @@
 function xy = IBWtoTXT(filename)
-
 	[vector, ~, ~, ~, ~] = ReadIBW(filename);
 	lv = length(vector)/3;
 	y = vector(lv+1:2*lv);

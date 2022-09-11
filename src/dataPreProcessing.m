@@ -1,24 +1,26 @@
 function xy = dataPreProcessing(resultFile)
-    
+%function dataPreProcessing(resultFile) takes as input a string path to an
+% .IBW file and returns a two column matrix with the z-coordinate of the
+% indenter and the tip, in nano-meters.
+%
+% INPUTS:
+%   resultFile              : {string} The name of the specific file to analyse,
+%                                      must be located in the targetDir.
+%
+% OUTPUTS:
+%   xy                      : {Matrix} [m*10^-9] Position of the indenter and the
+%                             indenter tip
+%
+% ABOUT:
+% created by    : August Brandberg augustbr at kth . se
+% date          : 2022-09-10
+%
 
-    % Check whether we are in MATLAB or in OCTAVE
-    execEngine = exist ('OCTAVE_VERSION', 'builtin');
+xy0 = IBWtoTXT(resultFile);
+% Load the .ibw file, convert to text.
+xy = xy0 * 1e9;
+% Convert to nano-meter  
 
-    xy0 = IBWtoTXT(resultFile);                     % Load the .ibw file, convert to text.
-
-    xy0 = xy0 * 1e9;                                % Convert to nano-meter
-
-    if execEngine == 0
-%         if  contains(resultFile,'hemi')                 % If a hemispherical probe, the load schedule is different and so the relevant data is isolated in this step
-%             xy0 = cleanAndIsolate(xy0);
-%         end
-    elseif execEngine == 5
-        if  size(strfind(resultFile,'hemi'),1) > 0                 % If a hemispherical probe, the load schedule is different and so the relevant data is isolated in this step
-            xy0 = cleanAndIsolate(xy0);
-        end
-    end
-    
-    xy = xy0;
 
 
     

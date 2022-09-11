@@ -62,43 +62,57 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
 %
 %
 
-    % Check whether we are in MATLAB or in OCTAVE
-    execEngine = exist ('OCTAVE_VERSION', 'builtin');
-    subplotSize = [3 3];
-    
-    % Preprocessing
-    xy = dataPreProcessing(horzcat(indentationSet.targetDir,resultFile));
-    
-%     if 1
-%     xy = resample(xy,2000,16667);% delme!
-%     xy = xy(10:end,:);
-%     end
-    
-    if ctrl.verbose
-        subplot(subplotSize(1),subplotSize(2),1)
-        plot(xy(:,1),xy(:,2),'DisplayName','Raw signal')
-        hold on
-        xlabel('Column 1')
-        ylabel('Column 2')
+% Check whether we are in MATLAB or in OCTAVE
+execEngine = exist ('OCTAVE_VERSION', 'builtin');
+% Save verbose-mode plots     
+if ctrl.verbose
+    if execEngine == 0
+    	plotDir = 'plotsMATLAB';    
+    elseif execEngine == 5
+        plotDir = 'plotsOCTAVE';
     end
+    if not(exist(plotDir ,'dir'))
+        mkdir(plotDir)
+    end
+end
     
-    % Fit a line to the beginning of the data recording to adjust for mean offset and linear drift
-    % in the signal. 
-    [xy,basefit,offsetPolynom,rampStartIdx,x_zero] = offsetAndDriftCompensation(xy);
+xy = dataPreProcessing(horzcat(indentationSet.targetDir,resultFile));
+% Import signal from instrument
+
+
+if ctrl.verbose
+    figure
+    %subplot(subplotSize(1),subplotSize(2),1)
+    plot(xy(:,1),xy(:,2),'DisplayName','Raw signal')
+    hold on
+    xlabel('Column 1')
+    ylabel('Column 2')
+end
+    
+    
+[xy,basefit,offsetPolynom,rampStartIdx,x_zero] = offsetAndDriftCompensation(xy, ...
+                                                                            hyperParameters.endRangeBaseFit, ...
+                                                                            hyperParameters.contactDetectionNoiseFactor);
+% Fit a line to the beginning of the data recording to adjust for mean offset and linear drift
+% in the signal. 
+
     if ctrl.verbose
-        subplot(subplotSize(1),subplotSize(2),1)
-        plot(xy(:,1),xy(:,2),'DisplayName',['Offset and drift corr., O = ' num2str(offsetPolynom(2)), ', D = ' num2str(offsetPolynom(1))])
-        legend('location','best')
-        
-        subplot(subplotSize(1),subplotSize(2),1)
+        %plot(xy(:,1),xy(:,2),'DisplayName',['Offset and drift corr., O = ' sprintf('%3.2e',offsetPolynom(2)), ', D = ' num2str(offsetPolynom(1))])
+        legend('location','northwest')      
         plot(xy(rampStartIdx,1),xy(rampStartIdx,2),'ko','DisplayName','Start of ramp')
         plot(xy(:,1),xy(:,2),'DisplayName','Calibrated to start of ramp')
+        
+        print([indentationSet.targetDir filesep resultFile(1:end-4) '_F1.png'],'-dpng', '-r600')
+        close;
     end
     
     % Convert displacement-deflection matrix to indentation-force matrix
-    xy(:,1) = xy(:,1)-xy(:,2);                                      % Subtract deflection from distance to get indentation.
-    xy(:,2) = xy(:,2)*indentationSet.springConstant;                % [10^-9*m]*[N/m] = nN Multiply deflection with spring constant to get the force.
-    xy(:,1) = xy(:,1) - hyperParameters.machineCompliance*xy(:,2); % OBS OBS OBS OBS OBS 
+    xy(:,1) = xy(:,1)-xy(:,2);                                      
+    % Subtract deflection from distance to get indentation.
+    xy(:,2) = xy(:,2)*indentationSet.springConstant;                
+    % [10^-9*m]*[N/m] = nN Multiply deflection with spring constant to get the force.
+    xy(:,1) = xy(:,1) - hyperParameters.machineCompliance*xy(:,2); 
+    % OBS OBS OBS OBS OBS 
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Determine the start of the hold time at circa max force.
@@ -131,15 +145,15 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     holdStartIdx = find(xy(:,2)> meanOfPlateau,1,'first');
 
     if ctrl.verbose
-        subplot(subplotSize(1),subplotSize(2),2)
+        figure;
         plot(xy(:,1),xy(:,2),'DisplayName','Centered signal')
         hold on
         plot(xy(rampStartIdx,1),xy(rampStartIdx,2),'ok','DisplayName','Start of ramp')
         plot(xy(holdStartIdx,1),xy(holdStartIdx,2),'ob','DisplayName','Start of hold')
-        %legend('location','best')
+        legend('location','northwest')
         xlabel('Indenter position [nm]')
         ylabel('Force [nN]')
-        xlim([xy(rampStartIdx,1)-100 max(xy(:,1))+100])
+        xlim([xy(rampStartIdx,1)-100 max(xy(:,1))+100])       
     end
     
  
@@ -148,7 +162,6 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
 	xy_unld1 = xy(holdStartIdx:end,:);
     
     if ctrl.verbose
-        subplot(subplotSize(1),subplotSize(2),2)
         plot(xy_load(:,1),xy_load(:,2),'DisplayName','Loading')
     end
 
@@ -186,19 +199,23 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     xy_unld = xy_unld1(unloadStartIdx:end,:);
     
     if ctrl.verbose
-        subplot(subplotSize(1),subplotSize(2),2)
         plot(xy_hold(:,1),xy_hold(:,2),'DisplayName','Hold')
         plot(xy_unld(1,1),xy_unld(1,2),'o','DisplayName','Start of unload')
-        plot(xy_unld(:,1),xy_unld(:,2),'DisplayName','Unload')
+        plot(xy_unld(:,1),xy_unld(:,2),'DisplayName','Unload')               
+        print([indentationSet.targetDir filesep resultFile(1:end-4) '_F2.png'],'-dpng', '-r600')
+        close;
         
-        subplot(subplotSize(1),subplotSize(2),3)
+        figure;
         plot(xy(holdStartIdx,1),xy(holdStartIdx,2),'o','DisplayName','Start of hold')
         hold on
         plot(xy_hold(:,1),xy_hold(:,2),'-k','DisplayName','Hold')
         plot(xy_unld1(unloadStartIdx,1),xy_unld1(unloadStartIdx,2),'o','DisplayName','End of hold')
-        %legend('location','best')
+        legend('location','southeast')
         xlabel('Indenter position [nm]')
         ylabel('Force [nN]')
+        
+        print([indentationSet.targetDir filesep resultFile(1:end-4) '_F3_driftDuringHold.png'],'-dpng', '-r600')
+        close;
     end    
     
 
@@ -283,32 +300,41 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     thermalHoldDisplacement = xy(thermalHoldStartIdx:thermalHoldEndIdx,1);
     thermalHoldTime = [1:length(thermalHoldDisplacement)]'./hyperParameters.sampleRate;
    
-    thermalCreepFun = @(x) x(1) + x(2) * (thermalHoldTime ).^(x(3));
+    thermalCreepFun = @(x)  x(1) * (thermalHoldTime ).^(x(2));
     thermalHoldminFcn = @(x) sum(sqrt((   (thermalCreepFun(x) - thermalHoldDisplacement)./thermalHoldDisplacement    ).^2));
     opts = optimset('Display','off');
-    thermal_p = fminunc(thermalHoldminFcn,[40 1.5 1/3],opts);
+    thermal_p = fminunc(thermalHoldminFcn,[1.5 1/3],opts);
     
     % Estimate the thermal drift rate by taking the median of the differentiated h_thermal
     % dhtdt = d(h_thermal(time))/d(time)
     % The functional form accounts for any viscous effects lingering from the unloading at the start
     % of the thermal hold, while the median provides a roboust average of the thermal drift rate.
-    dhtdt = median(thermal_p(2) * thermal_p(3)*thermalHoldTime.^(thermal_p(3) - 1));
+    dhtdt = median(thermal_p(1) * thermal_p(2)*thermalHoldTime.^(thermal_p(2) - 1));
 
     if ctrl.verbose
-        subplot(subplotSize(1),subplotSize(2),2)
-        plot(xy(thermalHoldStartIdx:thermalHoldEndIdx,1),xy(thermalHoldStartIdx:thermalHoldEndIdx,2),'DisplayName','Thermal hold')
-        plot(xy(thermalHoldStartIdx,1),xy(thermalHoldStartIdx,2),'s','DisplayName','Start of thermal hold')
-        plot(xy(thermalHoldEndIdx,1),xy(thermalHoldEndIdx,2),'s','DisplayName','End of thermal hold')
-        
-        subplot(subplotSize(1),subplotSize(2),4)
+        figure
         plot(xy(thermalHoldStartIdx:thermalHoldEndIdx,1),xy(thermalHoldStartIdx:thermalHoldEndIdx,2),'DisplayName','Thermal hold')
         hold on
         plot(xy(thermalHoldStartIdx,1),xy(thermalHoldStartIdx,2),'s','DisplayName','Start of thermal hold')
         plot(xy(thermalHoldEndIdx,1),xy(thermalHoldEndIdx,2),'s','DisplayName','End of thermal hold')
         xlabel('Indenter position [nm]')
         ylabel('Force [nN]')
-        title(['dhtdt = ' num2str(round(dhtdt,2))])
-        legend('location','best')
+        title(['dhtdt = ' num2str(round(dhtdt,2)) ' nm/s'])
+        legend('location','northwest')
+        
+        print([indentationSet.targetDir filesep resultFile(1:end-4) '_F4_driftDuringThermalHold.png'],'-dpng', '-r600')
+        close;
+        
+%         figure
+%         plot(thermalHoldTime,xy(thermalHoldStartIdx:thermalHoldEndIdx,1),'DisplayName','Thermal hold')
+%         hold on
+%         plot(thermalHoldTime,thermalCreepFun(thermalHoldTime) ,'s','DisplayName',sprintf('Fit, y(t) = %3.2f * t^{%3.2f}',thermal_p(1) , thermal_p(2)))
+%         xlabel('Time [s]')
+%         ylabel('Indenter position [nm]')
+%         title(['dhtdt = ' num2str(round(dhtdt,2)) ' nm/s'])
+%         legend('location','northwest')
+%         print([indentationSet.targetDir filesep resultFile(1:end-4) '_F4b_driftDuringThermalHold.png'],'-dpng', '-r600')
+%         close;
     end
     
     
@@ -445,31 +471,41 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
         end
         
         if ctrl.verbose
-            subplot(subplotSize(1),subplotSize(2),5)
-            plot(xy_unld5(1:hyperParameters.uld_fit_nr,1),xy_unld5(1:hyperParameters.uld_fit_nr,2))
+            xTemp = xy_unld5(1:hyperParameters.uld_fit_nr,1);
+            yTemp = xy_unld5(1:hyperParameters.uld_fit_nr,2);
+            
+            figure;
+            plot(xy_unld5(:,1),xy_unld5(:,2),'DisplayName','Signal')
             hold on
+            plot(xTemp,yTemp,'DisplayName','Signal used in fit')
+            
             if strcmp(hyperParameters.unloadingFitFunction,'Ganser')
-                plot([ones(size(xy_unld5(1:hyperParameters.uld_fit_nr,2),1),1) ...
-                      xy_unld5(1:hyperParameters.uld_fit_nr,2).^0.5            ...
-                      xy_unld5(1:hyperParameters.uld_fit_nr,2).^0.25           ...
-                      xy_unld5(1:hyperParameters.uld_fit_nr,2).^0.125]*uld_p,xy_unld5(1:hyperParameters.uld_fit_nr,2),'k-') 
+                plot([ones(size(yTemp,1),1) ...
+                      yTemp.^0.5            ...
+                      yTemp.^0.25           ...
+                      yTemp.^0.125]*uld_p,yTemp, ...
+                      'k-', 'DisplayName', 'Fit (Ganser)') 
                   
             elseif strcmp(hyperParameters.unloadingFitFunction,'Feng')
                 plot((uld_p(1)+uld_p(2).*xy_unld5(1:hyperParameters.uld_fit_nr,2).^0.5 + uld_p(3).*xy_unld5(1:hyperParameters.uld_fit_nr,2).^uld_p(4)), ...
-                      xy_unld5(1:hyperParameters.uld_fit_nr,2),'k-') 
+                      xy_unld5(1:hyperParameters.uld_fit_nr,2),'k-', 'DisplayName', 'Fit (Feng)') 
             elseif strcmp(hyperParameters.unloadingFitFunction,'Oliver-Pharr')       
-                plot(xy_unld5(1:hyperParameters.uld_fit_nr,1),uld_p(1)*(xy_unld5(1:hyperParameters.uld_fit_nr,1) - uld_p(2)).^uld_p(3),'k-')
-
+                plot(xTemp,uld_p(1)*(xTemp - uld_p(2)).^uld_p(3),'k-', 'DisplayName', 'Fit (Oliver & Pharr)')
             else
                 disp('Not implemented!')
                 disp(stop)
             end
+            xlabel('Indenter position [nm]')
+            ylabel('Force [nN]')
+            legend('location','northwest')
+            print([indentationSet.targetDir filesep resultFile(1:end-4) '_F5_unloadingWithFit.png'],'-dpng', '-r600')
+            close;
 
-            subplot(subplotSize(1),subplotSize(2),6)
-            plot(hyperParameters.unloadingFitRange(xLoop),stiffness_fitS(xLoop),'ob','HandleVisibility','off')
-            hold on
-            xlabel('Number of points in fit')
-            ylabel('Apparent stiffness S_u [N/m]')
+%             subplot(subplotSize(1),subplotSize(2),6)
+%             plot(hyperParameters.unloadingFitRange(xLoop),stiffness_fitS(xLoop),'ob','HandleVisibility','off')
+%             hold on
+%             xlabel('Number of points in fit')
+%             ylabel('Apparent stiffness S_u [N/m]')
         end
         
         % Collect diagnostic data
@@ -490,25 +526,12 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
        
     
     if ctrl.verbose
-        subplot(subplotSize(1),subplotSize(2),5)
-        if execEngine == 0
-            legend('Data in fit','Fit','location','best')
-        end
-        xlabel('Indenter position [nm]')
-        ylabel('Force [nN]')
-            
-       subplot(subplotSize(1),subplotSize(2),6)
-       plot([hyperParameters.unloadingFitRange(1) hyperParameters.unloadingFitRange(end)], ...
-             stiffness_fit.*[1 1],'linewidth',2,'DisplayName','Median fit')
-%        ylim([0 2*stiffness_fit+eps])
-       if execEngine == 0
-           legend('location','best')
-       end
-       
-       subplot(subplotSize(1),subplotSize(2),7)
+       figure;
        plot([hyperParameters.unloadingFitRange],100*[diagnostics.rmsValue],'o-')
        xlabel('Number of points in fit')
        ylabel('Root Mean Square Percentage Error [%]')       
+       print([indentationSet.targetDir filesep resultFile(1:end-4) '_F7_RMSofFit.png'],'-dpng', '-r600')
+       close;
     end
 
 
@@ -528,20 +551,24 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     % Generate time signal
     holdTimeVals = [1:size(xy_hold,1)]'/hyperParameters.sampleRate;
 
-    hOftFun = @(x) x(1) + x(2) * holdTimeVals.^(x(3));
+    % Depreciated fitting with three fitting parameters
+%     hOftFun = @(x) x(1) + x(2) * holdTimeVals.^(x(3));
+%     minFcn = @(x) sqrt(sum((   (hOftFun(x) - xy_hold(:,1))./xy_hold(:,1)    ).^2));
+%     crp_p = fminunc(minFcn,[40 1.5 1/3],opts);
+%     h_dot_tot = crp_p(2)*crp_p(3)*holdTimeVals(end)^(crp_p(3) - 1);
+    
+    hOftFun = @(x) xy_hold(1,1) + x(1) * holdTimeVals.^(x(2));
     minFcn = @(x) sqrt(sum((   (hOftFun(x) - xy_hold(:,1))./xy_hold(:,1)    ).^2));
-    crp_p = fminunc(minFcn,[40 1.5 1/3],opts);
+    crp_p = fminunc(minFcn,[1.5 1/3],opts);
 
-    h_dot_tot = crp_p(2)*crp_p(3)*holdTimeVals(end)^(crp_p(3) - 1);
+    h_dot_tot = crp_p(1)*crp_p(2)*holdTimeVals(end)^(crp_p(2) - 1);
 
     dPdt = [hyperParameters.sampleRate^-1*[0:(length(xy_unld5(:,1))-1)]' ones(length(xy_unld5(:,1)),1)]\xy_unld5(:,2);  
     
     
-%     if (h_dot_tot-dhtdt) < 0
-%         disp('Warning: Negative creep rate detected.')
-%         disp('Setting to 0.')
-%         h_dot_tot = dhtdt;
-%     end
+    if (h_dot_tot-dhtdt) < 0 && hyperParameters.allowNegativeCreep ~= 1
+        h_dot_tot = dhtdt;
+    end
     
     % Equation (3) in [1]
     if hyperParameters.compensateCreep
@@ -551,27 +578,32 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     end
     
     if ctrl.verbose
-        subplot(subplotSize(1),subplotSize(2),8)
+        figure;
         bar(categorical({'Apparent stiffness','Creep contribution','Stiffness'}), ...
-            [stiffness_fit (h_dot_tot/(abs(dPdt(1))))^-1 stiffness])
+                        [stiffness_fit (h_dot_tot/(abs(dPdt(1))))^-1 stiffness])
+        ylabel('Equivalent stiffness [N/m]')
+        print([indentationSet.targetDir filesep resultFile(1:end-4) '_F8_RelativeImportanceOfCreep.png'],'-dpng', '-r600')
+        close;
         
-        subplot(subplotSize(1),subplotSize(2),9)
-        plot(holdTimeVals,xy_hold(:,1))
+        figure
+        plot(holdTimeVals,xy_hold(:,1), 'DisplayName','Signal')
         hold on
-        plot(holdTimeVals,hOftFun(crp_p))
+%         plot(holdTimeVals,hOftFun(crp_p),'DisplayName',sprintf('Fit, y(t) = %3.1f + %3.1f * t^{%3.1f}',crp_p(1) , crp_p(2) , crp_p(3) ))
+        plot(holdTimeVals,hOftFun(crp_p),'DisplayName',sprintf('Fit, y(t) = %3.1f + %3.2f * t^{%3.2f}',xy_hold(1,1) , crp_p(1) , crp_p(2) ))
         xlabel('Time [s]')
-        ylabel('Displacement')
-        title(['End creep rate = ' num2str(round(h_dot_tot,2))])
+        ylabel('Indenter displacement [nm]')
+        legend('location','southeast')
+        title(['End creep rate = ' num2str(round(h_dot_tot,2)) ' nm/s'])
+        print([indentationSet.targetDir filesep resultFile(1:end-4) '_F9_creepDuringHold.png'],'-dpng', '-r600')
+        close;
     end
     
     % Equation (22) in [1]
-    %     Cidx = (h_dot_tot-dhtdt) * stiffness_fit / abs(dPdt(1));
-    Cidx = (h_dot_tot-dhtdt)*stiffness/abs(dPdt(1));
-    
+    Cidx = (h_dot_tot-dhtdt)*stiffness_fit/abs(dPdt(1));  
    
     
     % Equation (2) in [1]
-    maxIndentation = median(xy_unld5(1,1)) - dhtdt*(size(xy(rampStartIdx:holdStartIdx,1),1)+size(xy_hold,1))/hyperParameters.sampleRate; %OBS OBS OBS
+    maxIndentation = xy_unld5(1,1) - dhtdt*(size(xy(rampStartIdx:holdStartIdx,1),1)+size(xy_hold,1))/hyperParameters.sampleRate;
     
     if contains(resultFile,'pyr')
         x0 = maxIndentation - 0.72*Fmax/stiffness;
@@ -590,12 +622,13 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     %   dPdt    - [nm/s] Derivative of force with respect to time
     %   h_c     - [nm] Contact depth
     th = length(xy(rampStartIdx:unloadStartIdx,1))/hyperParameters.sampleRate;
-    thermIdx = 1 - th*abs(dPdt(1))/(x0*stiffness);
+    thermIdx = 1 - th*abs(dPdt(1)) /(x0*stiffness);
     
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	% Determine the area by loading the calibration data and fitting a polynom to the data.
     area_xy = load(indentationSet.areaFile);
+    
 
     if (x0 >= 100)
         area_fit_end = size(area_xy,1);
@@ -611,18 +644,13 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
 
     if UnloadArea < max(area_xy(:,2)) || x0 > 15 || x0 < 300  % 25
         % Equation (1) in [1]
-%         Er = sqrt(pi)/(1.05*2)*(stiffness/sqrt(UnloadArea));
-        
         Er = sqrt(pi)/(2)/sqrt(UnloadArea) / (1/stiffness );%- hyperParameters.machineCompliance
         
         if contains(resultFile,'pyr')
             Er = Er/1.05;
         end
         
-        
-        
         H = Fmax/UnloadArea;
-
 
         % Collect diagnostic output
         diagnostics.constantOffset = offsetPolynom(2);
@@ -672,7 +700,7 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     end
     
     % For some of the functions, the Er may end up imaginary if something goes wrong. 
-    if imag(Er) > 0
+    if imag(Er) ~= 0
         disp('Fit unsuccessful. This sample will be dropped.')
         diagnostics.comment = 'Fit unsuccessful.';
         Er = nan;
@@ -713,26 +741,6 @@ function [Er,H,Cidx,thermIdx,diagnostics] = modulusFitter(indentationSet,ctrl,hy
     end
 
     
-% Save verbose-mode plots     
-if ctrl.verbose
-    if execEngine == 0
-        if not(exist('plotsMATLAB','dir'))
-            mkdir('plotsMATLAB')
-        end
-      folders = subdirImport([pwd filesep 'plotsMATLAB' filesep],'regex','_');
-      print(horzcat([pwd filesep 'plotsMATLAB' filesep],resultFile(1:end-4)),'-dpng')
-    elseif execEngine == 5
-      mkdir('plotsOCTAVE')
-      folders = subdirImport([pwd filesep 'plotsOCTAVE' filesep],'regex','_');
-      print(horzcat([pwd filesep 'plotsOCTAVE' filesep],resultFile(1:end-4)),'-dpng')
-    end
-  
-    % Turn off the hold-on for all subplots so that we can begin plotting the next indentation data
-    % in the same window.
-    for tLoop = 1:subplotSize(1)*subplotSize(2)
-        subplot(subplotSize(1),subplotSize(2),tLoop)
-        hold off
-    end
-end
+
 end % End of function
 
